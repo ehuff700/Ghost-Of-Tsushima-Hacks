@@ -3,7 +3,7 @@ extern crate tracing;
 
 use clap::Parser;
 use cli::{add_material, set_material, subtract_material, Cli, Subcommands};
-use gamecheat::helpers::GameHandle;
+use gamecheat::game_handle::GameHandle;
 use tracing::level_filters::LevelFilter;
 pub mod cli;
 

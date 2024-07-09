@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use clap::{Parser, Subcommand, ValueEnum};
-use gamecheat::helpers::GameHandle;
+use gamecheat::game_handle::GameHandle;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
