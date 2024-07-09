@@ -8,6 +8,7 @@ pub mod wintypes {
     pub type BOOL = bool;
     pub type ULONG_PTR = usize;
     pub type WCHAR = u16;
+    pub type LPWSTR = *mut WCHAR;
     pub type SIZE_T = usize;
 }
 
@@ -80,6 +81,12 @@ pub mod prototypes {
             cb: DWORD,
             lpcbNeeded: *mut DWORD,
         ) -> BOOL;
+        pub fn GetModuleBaseNameW(
+            hProcess: HANDLE,
+            hModule: HMODULE,
+            lpBaseName: LPWSTR,
+            nSize: DWORD,
+        ) -> DWORD;
 
     }
 }

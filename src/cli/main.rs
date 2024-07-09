@@ -30,8 +30,5 @@ fn main() {
     tracing_subscriber::fmt()
         .with_max_level(LevelFilter::DEBUG)
         .init();
-
-    if let Err(why) = entry() {
-        error!("FATAL ERROR: {why}");
-    }
+    let _ = entry().inspect_err(|e| error!("{}", e));
 }

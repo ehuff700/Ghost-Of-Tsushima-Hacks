@@ -16,7 +16,7 @@ macro_rules! map_win_ptr {
 #[macro_export]
 macro_rules! map_win_bool {
     ($func:ident($($arg:expr),*)) => {{
-        let ret = $func($($arg),*);
+        let ret = $func($($arg),*) as bool;
         if ret == false {
             Err($crate::errors::GamecheatError::OperationError(stringify!($func), std::io::Error::last_os_error()))
         } else {
@@ -25,12 +25,24 @@ macro_rules! map_win_bool {
     }};
 }
 
+#[macro_export]
+macro_rules! map_win_int {
+    ($func:ident($($arg:expr),*)) => {{
+        let ret = $func($($arg),*);
+        if ret == 0 {
+            Err($crate::errors::GamecheatError::OperationError(stringify!($func), std::io::Error::last_os_error()))
+        } else {
+            Ok(ret)
+        }
+    }};
+}
 use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
 use crate::{
     api::{
         constants::{
-            PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE, TH32CS_SNAPPROCESS,
+            MAX_PATH, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
+            TH32CS_SNAPPROCESS,
         },
         prototypes::*,
         structs::PROCESSENTRY32W,
@@ -66,7 +78,7 @@ impl GameHandle {
                 ))?
             };
 
-            let image_base = GetImageBase(handle)?;
+            let image_base = GetImageBase(handle, game_name)?;
             Ok(GameHandle { handle, image_base })
         } else {
             Err(GamecheatError::GameProcessNotFound(game_name))
@@ -182,7 +194,7 @@ fn GetProcessList() -> GamecheatResult<Vec<(u32, OsString)>> {
 }
 
 /// Retrieves the base address of the game's executable module.
-fn GetImageBase(h_process: HANDLE) -> GamecheatResult<u64> {
+fn GetImageBase(h_process: HANDLE, game_name: &'static str) -> GamecheatResult<u64> {
     let mut cb_needed = 0;
     unsafe {
         EnumProcessModules(h_process, std::ptr::null_mut(), 0, &mut cb_needed);
@@ -197,5 +209,22 @@ fn GetImageBase(h_process: HANDLE) -> GamecheatResult<u64> {
             &mut cb_needed
         ))?
     };
-    Ok(h_modules[0] as u64)
+
+    for h_module in h_modules {
+        let mut buffer = [0u16; MAX_PATH];
+        let file_len = unsafe {
+            map_win_int!(GetModuleBaseNameW(
+                h_process,
+                h_module,
+                buffer.as_mut_ptr() as *mut _,
+                buffer.len() as u32
+            ))
+        }?;
+        let file_name = OsString::from_wide(&buffer[..file_len as usize]);
+        if file_name.eq_ignore_ascii_case(game_name) {
+            return Ok(h_module as u64);
+        }
+    }
+
+    Err(GamecheatError::GameModuleNotFound)
 }
