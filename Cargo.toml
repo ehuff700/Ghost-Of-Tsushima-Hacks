@@ -5,8 +5,18 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.8", features = ["derive"] }
+thiserror = "1.0.61"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 
 [build-dependencies]
 winres = "0.1"
+
+[[bin]]
+name = "got"
+path = "src/cli/main.rs"
+
+[lib]
+name = "gamecheat"
+path = "src/gamecheat/lib.rs"
+

@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use gamecheat::helpers::GameHandle;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -98,4 +99,51 @@ pub enum Subcommands {
         #[arg(required = true)]
         value: u32,
     },
+}
+
+/// Sets a given material to the provided value.
+///
+/// Returns the new value on success
+pub fn set_material(
+    game_handle: &GameHandle,
+    material: Material,
+    value: u32,
+) -> Result<u32, Box<dyn std::error::Error>> {
+    game_handle.write_u32(material.offset(), value)?;
+    Ok(value)
+}
+
+/// Adds a given material amount to the provided value.
+///
+/// Returns the new value on success
+pub fn add_material(
+    game_handle: &GameHandle,
+    material: Material,
+    value: u32,
+) -> Result<u32, Box<dyn std::error::Error>> {
+    // Get the current material amount and increment it by the given value.
+    let material_amount = game_handle.read_u32(material.offset())?;
+    if let Some(value) = material_amount.checked_add(value) {
+        // Write the modified value back to the game process.
+        game_handle.write_u32(material.offset(), value)?;
+        return Ok(value);
+    }
+    Err("overflow occurred while adding material amount".into())
+}
+
+/// Subtracts a given material amount from the provided value.
+///
+/// Returns the new value on success
+pub fn subtract_material(
+    game_handle: &GameHandle,
+    material: Material,
+    value: u32,
+) -> Result<u32, Box<dyn std::error::Error>> {
+    // Get the current material amount and decrement it by the given value.
+    let mut material_amount = game_handle.read_u32(material.offset())?;
+    material_amount -= value;
+
+    // Write the modified value back to the game process.
+    game_handle.write_u32(material.offset(), material_amount)?;
+    Ok(material_amount)
 }

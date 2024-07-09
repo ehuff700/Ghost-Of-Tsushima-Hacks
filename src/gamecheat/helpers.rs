@@ -31,17 +31,14 @@ macro_rules! map_win_bool {
 
 use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
-use crate::{
-    api::{
-        constants::{
-            INVALID_HANDLE_VALUE, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
-            TH32CS_SNAPPROCESS,
-        },
-        prototypes::*,
-        structs::PROCESSENTRY32W,
-        wintypes::{HANDLE, HMODULE},
+use crate::api::{
+    constants::{
+        INVALID_HANDLE_VALUE, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
+        TH32CS_SNAPPROCESS,
     },
-    cli::Material,
+    prototypes::*,
+    structs::PROCESSENTRY32W,
+    wintypes::{HANDLE, HMODULE},
 };
 
 #[derive(Debug, Clone)]
@@ -55,7 +52,7 @@ pub struct GameHandle {
 
 impl GameHandle {
     /// Reads the memory at a given offset and returns the result
-    pub fn read_memory<const N: usize>(
+    fn read_memory<const N: usize>(
         &self,
         offset: u64,
     ) -> Result<[u8; N], Box<dyn std::error::Error>> {
@@ -74,11 +71,7 @@ impl GameHandle {
     }
 
     /// Writes the given value to the memory at the given offset
-    pub fn write_memory(
-        &self,
-        offset: u64,
-        value: &[u8],
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn write_memory(&self, offset: u64, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         let final_address = self.image_base + offset;
         map_win_bool!(unsafe {
             WriteProcessMemory(
@@ -90,6 +83,26 @@ impl GameHandle {
             )
         });
         Ok(())
+    }
+
+    /// Writes a u32 value to the memory at the given offset
+    pub fn write_u32(&self, offset: u64, value: u32) -> Result<(), Box<dyn std::error::Error>> {
+        self.write_memory(offset, &value.to_le_bytes())
+    }
+
+    /// Reads a u32 value from the memory at the given offset
+    pub fn read_u32(&self, offset: u64) -> Result<u32, Box<dyn std::error::Error>> {
+        let bytes = self.read_memory(offset)?;
+        Ok(u32::from_le_bytes(bytes))
+    }
+
+    /* Getters */
+    pub fn handle(&self) -> HANDLE {
+        self.handle
+    }
+
+    pub fn image_base(&self) -> u64 {
+        self.image_base
     }
 }
 
@@ -167,52 +180,4 @@ pub fn GetGameHandle(game_name: &str) -> Result<Option<GameHandle>, Box<dyn std:
     } else {
         Ok(None)
     }
-}
-
-/// Sets a given material to the provided value.
-///
-/// Returns the new value on success
-pub fn SetMaterial(
-    game_handle: &GameHandle,
-    material: Material,
-    value: u32,
-) -> Result<u32, Box<dyn std::error::Error>> {
-    game_handle.write_memory(material.offset(), &value.to_le_bytes())?;
-    Ok(value)
-}
-
-/// Adds a given material amount to the provided value.
-///
-/// Returns the new value on success
-pub fn AddMaterial(
-    game_handle: &GameHandle,
-    material: Material,
-    value: u32,
-) -> Result<u32, Box<dyn std::error::Error>> {
-    // Get the current material amount and increment it by the given value.
-    let material_amount: [u8; 4] = game_handle.read_memory(material.offset())?;
-    let mut material_amount = u32::from_le_bytes(material_amount);
-    material_amount += value;
-
-    // Write the modified value back to the game process.
-    game_handle.write_memory(material.offset(), &material_amount.to_le_bytes())?;
-    Ok(material_amount)
-}
-
-/// Subtracts a given material amount from the provided value.
-///
-/// Returns the new value on success
-pub fn SubtractMaterial(
-    game_handle: &GameHandle,
-    material: Material,
-    value: u32,
-) -> Result<u32, Box<dyn std::error::Error>> {
-    // Get the current material amount and decrement it by the given value.
-    let material_amount: [u8; 4] = game_handle.read_memory(material.offset())?;
-    let mut material_amount = u32::from_le_bytes(material_amount);
-    material_amount -= value;
-
-    // Write the modified value back to the game process.
-    game_handle.write_memory(material.offset(), &material_amount.to_le_bytes())?;
-    Ok(material_amount)
 }
