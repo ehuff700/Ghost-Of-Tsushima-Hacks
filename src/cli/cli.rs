@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use clap::{Parser, Subcommand, ValueEnum};
 use gamecheat::helpers::GameHandle;
 
@@ -128,7 +129,7 @@ pub fn add_material(
         game_handle.write_u32(material.offset(), value)?;
         return Ok(value);
     }
-    Err("overflow occurred while adding material amount".into())
+    Err(anyhow!("overflow occurred while adding value {value} to {material_amount}").into())
 }
 
 /// Subtracts a given material amount from the provided value.
@@ -140,10 +141,10 @@ pub fn subtract_material(
     value: u32,
 ) -> Result<u32, Box<dyn std::error::Error>> {
     // Get the current material amount and decrement it by the given value.
-    let mut material_amount = game_handle.read_u32(material.offset())?;
-    material_amount -= value;
-
-    // Write the modified value back to the game process.
-    game_handle.write_u32(material.offset(), material_amount)?;
-    Ok(material_amount)
+    let material_amount = game_handle.read_u32(material.offset())?;
+    if let Some(value) = material_amount.checked_sub(value) {
+        game_handle.write_u32(material.offset(), value)?;
+        return Ok(value);
+    };
+    Err(anyhow!("overflow occurred while subtracting value {value} from {material_amount}").into())
 }

@@ -80,7 +80,7 @@ impl GameHandle {
         unsafe {
             map_win_bool!(ReadProcessMemory(
                 self.handle,
-                final_address as *mut _,
+                final_address as *const _,
                 buffer.as_mut_ptr() as *mut _,
                 N,
                 std::ptr::null_mut()
@@ -95,7 +95,7 @@ impl GameHandle {
         unsafe {
             map_win_bool!(WriteProcessMemory(
                 self.handle,
-                final_address as *mut _,
+                final_address as *const _,
                 value.as_ptr() as *const _,
                 value.len(),
                 std::ptr::null_mut()
