@@ -217,7 +217,7 @@ fn GetImageBase(h_process: HANDLE, game_name: &'static str) -> GamecheatResult<u
                 h_process,
                 h_module,
                 buffer.as_mut_ptr() as *mut _,
-                buffer.len() as u32
+                (buffer.len() / std::mem::size_of::<u16>()) as u32
             ))
         }?;
         let file_name = OsString::from_wide(&buffer[..file_len as usize]);
