@@ -2,43 +2,42 @@
 
 #[macro_export]
 macro_rules! map_win_ptr {
-    ($result:expr) => {{
-        let r = $result;
-        if r.is_null() {
-            return Err(std::io::Error::last_os_error().into());
-        }
-        r
-    }};
-    ($result:expr, $failure_value:expr) => {{
-        let r = $result;
-        if r == $failure_value {
-            return Err(std::io::Error::last_os_error().into());
-        }
+    ($func:ident($($arg:expr),*)) => {{
+        let ret = $func($($arg),*);
+        let r = if ret.is_null() || ret == $crate::api::constants::INVALID_HANDLE_VALUE {
+            Err($crate::errors::GamecheatError::OperationError(stringify!($func), std::io::Error::last_os_error()))
+        } else {
+            Ok(ret)
+        };
         r
     }};
 }
 
 #[macro_export]
 macro_rules! map_win_bool {
-    ($result:expr) => {{
-        let r = $result;
-        if r == false {
-            return Err(std::io::Error::last_os_error().into());
+    ($func:ident($($arg:expr),*)) => {{
+        let ret = $func($($arg),*);
+        if ret == false {
+            Err($crate::errors::GamecheatError::OperationError(stringify!($func), std::io::Error::last_os_error()))
+        } else {
+            Ok(ret)
         }
-        r
     }};
 }
 
 use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
-use crate::api::{
-    constants::{
-        INVALID_HANDLE_VALUE, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
-        TH32CS_SNAPPROCESS,
+use crate::{
+    api::{
+        constants::{
+            PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE, TH32CS_SNAPPROCESS,
+        },
+        prototypes::*,
+        structs::PROCESSENTRY32W,
+        wintypes::{HANDLE, HMODULE},
     },
-    prototypes::*,
-    structs::PROCESSENTRY32W,
-    wintypes::{HANDLE, HMODULE},
+    errors::GamecheatError,
+    GamecheatResult,
 };
 
 #[derive(Debug, Clone)]
@@ -51,49 +50,89 @@ pub struct GameHandle {
 }
 
 impl GameHandle {
+    /// Creates a new GameHandle for the given game process name.
+    pub fn new(game_name: &'static str) -> GamecheatResult<Self> {
+        let process_list = GetProcessList()?;
+        let game_info = process_list
+            .into_iter()
+            .find_map(|(pid, name)| name.eq_ignore_ascii_case(game_name).then_some((pid, name)));
+
+        if let Some((process_id, _)) = game_info {
+            let handle = unsafe {
+                map_win_ptr!(OpenProcess(
+                    PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_QUERY_INFORMATION,
+                    false,
+                    process_id
+                ))?
+            };
+
+            let image_base = GetImageBase(handle)?;
+            Ok(GameHandle { handle, image_base })
+        } else {
+            Err(GamecheatError::GameProcessNotFound(game_name))
+        }
+    }
+
     /// Reads the memory at a given offset and returns the result
-    fn read_memory<const N: usize>(
-        &self,
-        offset: u64,
-    ) -> Result<[u8; N], Box<dyn std::error::Error>> {
+    fn read_memory<const N: usize>(&self, offset: u64) -> GamecheatResult<[u8; N]> {
         let mut buffer = [0u8; N];
         let final_address = self.image_base + offset;
-        map_win_bool!(unsafe {
-            ReadProcessMemory(
+        unsafe {
+            map_win_bool!(ReadProcessMemory(
                 self.handle,
                 final_address as *mut _,
                 buffer.as_mut_ptr() as *mut _,
                 N,
-                std::ptr::null_mut(),
-            )
-        });
+                std::ptr::null_mut()
+            ))?
+        };
         Ok(buffer)
     }
 
     /// Writes the given value to the memory at the given offset
-    fn write_memory(&self, offset: u64, value: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    fn write_memory(&self, offset: u64, value: &[u8]) -> GamecheatResult<()> {
         let final_address = self.image_base + offset;
-        map_win_bool!(unsafe {
-            WriteProcessMemory(
+        unsafe {
+            map_win_bool!(WriteProcessMemory(
                 self.handle,
                 final_address as *mut _,
                 value.as_ptr() as *const _,
                 value.len(),
-                std::ptr::null_mut(),
-            )
-        });
+                std::ptr::null_mut()
+            ))?
+        };
         Ok(())
     }
 
+    /// Writes a u8 value to the memory at the given offset
+    pub fn write_u8(&self, offset: u64, value: u8) -> GamecheatResult<()> {
+        self.write_memory(offset, &[value])
+    }
+
+    /// Reads a u8 value from the memory at the given offset
+    pub fn read_u8(&self, offset: u64) -> GamecheatResult<u8> {
+        let byte: [u8; 1] = self.read_memory(offset)?;
+        Ok(byte[0])
+    }
+
+    /// Writes a u16 value to the memory at the given offset
+    pub fn write_u16(&self, offset: u64, value: u16) -> GamecheatResult<()> {
+        self.write_memory(offset, &value.to_le_bytes())
+    }
+
+    /// Reads a u16 value from the memory at the given offset
+    pub fn read_u16(&self, offset: u64) -> GamecheatResult<u16> {
+        Ok(u16::from_le_bytes(self.read_memory(offset)?))
+    }
+
     /// Writes a u32 value to the memory at the given offset
-    pub fn write_u32(&self, offset: u64, value: u32) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn write_u32(&self, offset: u64, value: u32) -> GamecheatResult<()> {
         self.write_memory(offset, &value.to_le_bytes())
     }
 
     /// Reads a u32 value from the memory at the given offset
-    pub fn read_u32(&self, offset: u64) -> Result<u32, Box<dyn std::error::Error>> {
-        let bytes = self.read_memory(offset)?;
-        Ok(u32::from_le_bytes(bytes))
+    pub fn read_u32(&self, offset: u64) -> GamecheatResult<u32> {
+        Ok(u32::from_le_bytes(self.read_memory(offset)?))
     }
 
     /* Getters */
@@ -118,11 +157,8 @@ impl Drop for GameHandle {
 }
 
 /// Retrieves a list of all running processes on the system.
-fn GetProcessList() -> Result<Vec<(u32, OsString)>, Box<dyn std::error::Error>> {
-    let h_process_snap = map_win_ptr!(
-        unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) },
-        INVALID_HANDLE_VALUE
-    );
+fn GetProcessList() -> GamecheatResult<Vec<(u32, OsString)>> {
+    let h_process_snap = unsafe { map_win_ptr!(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0))? };
 
     let mut pe32 = unsafe { std::mem::zeroed::<PROCESSENTRY32W>() };
     pe32.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
@@ -130,7 +166,7 @@ fn GetProcessList() -> Result<Vec<(u32, OsString)>, Box<dyn std::error::Error>> 
     unsafe {
         if !Process32FirstW(h_process_snap, &mut pe32) {
             CloseHandle(h_process_snap);
-            return Err("failed to retrieve first process entry".into());
+            return Err(GamecheatError::ProcessEnumError);
         }
     }
 
@@ -146,38 +182,20 @@ fn GetProcessList() -> Result<Vec<(u32, OsString)>, Box<dyn std::error::Error>> 
 }
 
 /// Retrieves the base address of the game's executable module.
-fn GetImageBase(h_process: HANDLE) -> Result<u64, Box<dyn std::error::Error>> {
+fn GetImageBase(h_process: HANDLE) -> GamecheatResult<u64> {
     let mut cb_needed = 0;
     unsafe {
         EnumProcessModules(h_process, std::ptr::null_mut(), 0, &mut cb_needed);
     }
     let module_count = cb_needed / std::mem::size_of::<HMODULE>() as u32;
     let mut h_modules = vec![0 as HMODULE; module_count as usize];
-    map_win_bool!(unsafe {
-        EnumProcessModules(h_process, h_modules.as_mut_ptr(), cb_needed, &mut cb_needed)
-    });
+    unsafe {
+        map_win_bool!(EnumProcessModules(
+            h_process,
+            h_modules.as_mut_ptr(),
+            cb_needed,
+            &mut cb_needed
+        ))?
+    };
     Ok(h_modules[0] as u64)
-}
-
-/// Retrieves a valid handle to the specified game process.
-pub fn GetGameHandle(game_name: &str) -> Result<Option<GameHandle>, Box<dyn std::error::Error>> {
-    let process_list = GetProcessList()?;
-    let game_info = process_list
-        .into_iter()
-        .find_map(|(pid, name)| name.eq_ignore_ascii_case(game_name).then_some((pid, name)));
-
-    if let Some((process_id, _)) = game_info {
-        let handle = unsafe {
-            map_win_ptr!(OpenProcess(
-                PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_QUERY_INFORMATION,
-                false,
-                process_id
-            ))
-        };
-
-        let image_base = GetImageBase(handle)?;
-        Ok(Some(GameHandle { handle, image_base }))
-    } else {
-        Ok(None)
-    }
 }
