@@ -19,7 +19,6 @@ pub mod constants {
     pub const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
     pub const PROCESS_VM_READ: DWORD = 0x0010;
     pub const PROCESS_VM_WRITE: DWORD = 0x0020;
-    pub const PROCESS_VM_OPERATION: DWORD = 0x0008;
     pub const PROCESS_QUERY_INFORMATION: DWORD = 0x0400;
 }
 
@@ -66,7 +65,7 @@ pub mod prototypes {
         pub fn WriteProcessMemory(
             hProcess: HANDLE,
             lpBaseAddress: *const std::ffi::c_void,
-            lpBuffer: *mut std::ffi::c_void,
+            lpBuffer: *const std::ffi::c_void,
             nSize: SIZE_T,
             lpNumberOfBytesRead: *mut SIZE_T,
         ) -> BOOL;

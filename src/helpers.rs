@@ -34,8 +34,8 @@ use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 use crate::{
     api::{
         constants::{
-            INVALID_HANDLE_VALUE, PROCESS_QUERY_INFORMATION, PROCESS_VM_OPERATION, PROCESS_VM_READ,
-            PROCESS_VM_WRITE, TH32CS_SNAPPROCESS,
+            INVALID_HANDLE_VALUE, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
+            TH32CS_SNAPPROCESS,
         },
         prototypes::*,
         structs::PROCESSENTRY32W,
@@ -44,22 +44,12 @@ use crate::{
     cli::Material,
 };
 
-pub struct ProcessInfo {
-    pub(crate) pid: u32,
-    pub(crate) name: OsString,
-}
-
-impl ProcessInfo {
-    pub fn compare_by_name(&self, other: impl Into<OsString>) -> bool {
-        let other = other.into();
-        self.name.eq_ignore_ascii_case(other)
-    }
-}
-
 #[derive(Debug, Clone)]
+/// A handle to a running game process.
+///
+/// This struct contains the raw handle from OpenHandle and image base.
 pub struct GameHandle {
     pub handle: HANDLE,
-    pub process_id: u32,
     pub image_base: u64,
 }
 
@@ -87,14 +77,14 @@ impl GameHandle {
     pub fn write_memory(
         &self,
         offset: u64,
-        value: &mut [u8],
+        value: &[u8],
     ) -> Result<(), Box<dyn std::error::Error>> {
         let final_address = self.image_base + offset;
         map_win_bool!(unsafe {
             WriteProcessMemory(
                 self.handle,
                 final_address as *mut _,
-                value.as_mut_ptr() as *mut _,
+                value.as_ptr() as *const _,
                 value.len(),
                 std::ptr::null_mut(),
             )
@@ -106,7 +96,7 @@ impl GameHandle {
 impl Drop for GameHandle {
     fn drop(&mut self) {
         if !unsafe { CloseHandle(self.handle) } {
-            eprintln!(
+            error!(
                 "failed to close process handle: {}",
                 std::io::Error::last_os_error()
             );
@@ -115,7 +105,7 @@ impl Drop for GameHandle {
 }
 
 /// Retrieves a list of all running processes on the system.
-fn GetProcessList() -> Result<Vec<ProcessInfo>, Box<dyn std::error::Error>> {
+fn GetProcessList() -> Result<Vec<(u32, OsString)>, Box<dyn std::error::Error>> {
     let h_process_snap = map_win_ptr!(
         unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) },
         INVALID_HANDLE_VALUE
@@ -136,11 +126,7 @@ fn GetProcessList() -> Result<Vec<ProcessInfo>, Box<dyn std::error::Error>> {
         let name = std::ffi::OsString::from_wide(
             &pe32.szExeFile[..pe32.szExeFile.iter().position(|c| *c == 0).unwrap()],
         );
-        let process_info = ProcessInfo {
-            pid: pe32.th32ProcessID,
-            name,
-        };
-        process_list.push(process_info);
+        process_list.push((pe32.th32ProcessID, name));
     }
     unsafe { CloseHandle(h_process_snap) };
     Ok(process_list)
@@ -165,26 +151,19 @@ pub fn GetGameHandle(game_name: &str) -> Result<Option<GameHandle>, Box<dyn std:
     let process_list = GetProcessList()?;
     let game_info = process_list
         .into_iter()
-        .find_map(|p| p.compare_by_name(game_name).then_some(p));
+        .find_map(|(pid, name)| name.eq_ignore_ascii_case(game_name).then_some((pid, name)));
 
-    if let Some(game_info) = game_info {
+    if let Some((process_id, _)) = game_info {
         let handle = unsafe {
             map_win_ptr!(OpenProcess(
-                PROCESS_VM_READ
-                    | PROCESS_VM_WRITE
-                    | PROCESS_VM_OPERATION
-                    | PROCESS_QUERY_INFORMATION,
+                PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_QUERY_INFORMATION,
                 false,
-                game_info.pid
+                process_id
             ))
         };
 
         let image_base = GetImageBase(handle)?;
-        Ok(Some(GameHandle {
-            handle,
-            process_id: game_info.pid,
-            image_base,
-        }))
+        Ok(Some(GameHandle { handle, image_base }))
     } else {
         Ok(None)
     }
@@ -198,7 +177,7 @@ pub fn SetMaterial(
     material: Material,
     value: u32,
 ) -> Result<u32, Box<dyn std::error::Error>> {
-    game_handle.write_memory(material.offset(), &mut value.to_le_bytes())?;
+    game_handle.write_memory(material.offset(), &value.to_le_bytes())?;
     Ok(value)
 }
 
@@ -216,7 +195,7 @@ pub fn AddMaterial(
     material_amount += value;
 
     // Write the modified value back to the game process.
-    game_handle.write_memory(material.offset(), &mut material_amount.to_le_bytes())?;
+    game_handle.write_memory(material.offset(), &material_amount.to_le_bytes())?;
     Ok(material_amount)
 }
 
@@ -234,6 +213,6 @@ pub fn SubtractMaterial(
     material_amount -= value;
 
     // Write the modified value back to the game process.
-    game_handle.write_memory(material.offset(), &mut material_amount.to_le_bytes())?;
+    game_handle.write_memory(material.offset(), &material_amount.to_le_bytes())?;
     Ok(material_amount)
 }
