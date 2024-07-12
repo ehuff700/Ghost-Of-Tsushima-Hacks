@@ -147,6 +147,27 @@ impl GameHandle {
         Ok(u32::from_le_bytes(self.read_memory(offset)?))
     }
 
+    /// Changes the protection of a memory region.
+    pub fn change_protection(
+        &self,
+        offset: u64,
+        size: usize,
+        protection: u32,
+    ) -> GamecheatResult<()> {
+        let mut old_protection: u32 = 0;
+        let final_address = self.image_base + offset;
+        unsafe {
+            map_win_bool!(VirtualProtectEx(
+                self.handle,
+                final_address as *const _,
+                size,
+                protection,
+                &mut old_protection
+            ))?;
+        }
+        Ok(())
+    }
+
     /* Getters */
     pub fn handle(&self) -> HANDLE {
         self.handle

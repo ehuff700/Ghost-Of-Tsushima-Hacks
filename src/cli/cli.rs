@@ -32,14 +32,15 @@ pub enum Material {
 
 impl Material {
     /* Static Offsets for common memory locations */
-    pub const ESSENCE_OFFSET: u64 = 0x1cd8b34;
-    pub const HONOR_OFFSET: u64 = 0x1cd8b38;
-    pub const BLESSING_OFFSET: u64 = 0x1cd8b3c;
-    pub const SWORD_TOKEN_OFFSET: u64 = 0x1cd8b40;
-    pub const BOW_TOKEN_OFFSET: u64 = 0x1cd8b44;
-    pub const CHARM_TOKEN_OFFSET: u64 = 0x1cd8b48;
-    pub const GW1_TOKEN_OFFSET: u64 = 0x1cd8b4c;
-    pub const GW2_TOKEN_OFFSET: u64 = 0x1cd8b50;
+    pub const ESSENCE_OFFSET: u64 = 0x1cdbbf4; // 0
+    pub const HONOR_OFFSET: u64 = 0x1cdbbf8; // +4
+    pub const BLESSING_OFFSET: u64 = 0x1cdbbfc; // +4
+
+    pub const SWORD_TOKEN_OFFSET: u64 = 0x1cdbc00; // +4
+    pub const BOW_TOKEN_OFFSET: u64 = 0x1cdbc04; // +4
+    pub const CHARM_TOKEN_OFFSET: u64 = 0x1cdbc08; // +4
+    pub const GW1_TOKEN_OFFSET: u64 = 0x1cdbc0c; // +4
+    pub const GW2_TOKEN_OFFSET: u64 = 0x1cdbc10; // +4
 
     /// Returns the appropriate offset for the given material.
     pub fn offset(&self) -> u64 {
@@ -56,17 +57,38 @@ impl Material {
     }
 }
 
-impl std::fmt::Display for Material {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum AmmoType {
+    Arrows,
+    Blowgun,
+    Throwable,
+}
+
+impl AmmoType {
+    pub const ARROW_X_OFFSET: u64 = 0x1cdc348; // +1848
+    pub const ARROW_Y_OFFSET: u64 = 0x1cdc34c; // +4
+
+    pub const BLOWGUN_X_OFFSET: u64 = 0x1cdc360; // +20
+    pub const BLOWGUN_Y_OFFSET: u64 = 0x1cdc364; // +4
+    pub const BLOWGUN_B_OFFSET: u64 = 0x1cdc368; // +4
+
+    pub const THROWABLE_Y_OFFSET: u64 = 0x1cdc370; // +8
+    pub const THROWABLE_B_OFFSET: u64 = 0x1cdc37c; // +12
+    pub const THROWABLE_X_OFFSET: u64 = 0x1cdc380; // +4
+
+    fn offsets(&self) -> &[u64] {
         match self {
-            Material::b => write!(f, "Blessing"),
-            Material::h => write!(f, "Honor"),
-            Material::e => write!(f, "Essence"),
-            Material::st => write!(f, "Sword Tokens"),
-            Material::bt => write!(f, "Bow Tokens"),
-            Material::ct => write!(f, "Charm Tokens"),
-            Material::gw1 => write!(f, "GW1 Token"),
-            Material::gw2 => write!(f, "GW2 Token"),
+            AmmoType::Arrows => &[Self::ARROW_X_OFFSET, Self::ARROW_Y_OFFSET],
+            AmmoType::Blowgun => &[
+                Self::BLOWGUN_X_OFFSET,
+                Self::BLOWGUN_Y_OFFSET,
+                Self::BLOWGUN_B_OFFSET,
+            ],
+            AmmoType::Throwable => &[
+                Self::THROWABLE_X_OFFSET,
+                Self::THROWABLE_Y_OFFSET,
+                Self::THROWABLE_B_OFFSET,
+            ],
         }
     }
 }
@@ -100,6 +122,11 @@ pub enum Subcommands {
         #[arg(required = true)]
         value: u32,
     },
+    /// Sets an ammo type to infinite
+    Infinite {
+        #[arg(short, long)]
+        ammo_type: AmmoType,
+    },
 }
 
 /// Sets a given material to the provided value.
@@ -111,6 +138,7 @@ pub fn set_material(
     value: u32,
 ) -> Result<u32, Box<dyn std::error::Error>> {
     game_handle.write_u32(material.offset(), value)?;
+
     Ok(value)
 }
 
@@ -147,4 +175,42 @@ pub fn subtract_material(
         return Ok(value);
     };
     Err(anyhow!("overflow occurred while subtracting value {value} from {material_amount}").into())
+}
+
+/// Sets the provided ammo type to their maximum possible values.
+pub fn infinite_ammo(
+    game_handle: &GameHandle,
+    ammo_type: AmmoType,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let offsets = ammo_type.offsets();
+    for offset in offsets {
+        game_handle.write_u32(*offset, 999999)?;
+    }
+    Ok(())
+}
+
+/* Display Implementations */
+impl std::fmt::Display for AmmoType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AmmoType::Arrows => write!(f, "Arrows"),
+            AmmoType::Blowgun => write!(f, "Blowgun"),
+            AmmoType::Throwable => write!(f, "Throwable"),
+        }
+    }
+}
+
+impl std::fmt::Display for Material {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Material::b => write!(f, "Blessing"),
+            Material::h => write!(f, "Honor"),
+            Material::e => write!(f, "Essence"),
+            Material::st => write!(f, "Sword Tokens"),
+            Material::bt => write!(f, "Bow Tokens"),
+            Material::ct => write!(f, "Charm Tokens"),
+            Material::gw1 => write!(f, "GW1 Token"),
+            Material::gw2 => write!(f, "GW2 Token"),
+        }
+    }
 }

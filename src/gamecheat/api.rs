@@ -10,6 +10,7 @@ pub mod wintypes {
     pub type WCHAR = u16;
     pub type LPWSTR = *mut WCHAR;
     pub type SIZE_T = usize;
+    pub type LPVOID = *const c_void;
 }
 
 pub mod constants {
@@ -21,6 +22,7 @@ pub mod constants {
     pub const PROCESS_VM_READ: DWORD = 0x0010;
     pub const PROCESS_VM_WRITE: DWORD = 0x0020;
     pub const PROCESS_QUERY_INFORMATION: DWORD = 0x0400;
+    pub const PAGE_READONLY: DWORD = 0x02;
 }
 
 pub mod structs {
@@ -58,19 +60,25 @@ pub mod prototypes {
         pub fn CloseHandle(hObject: HANDLE) -> BOOL;
         pub fn ReadProcessMemory(
             hProcess: HANDLE,
-            lpBaseAddress: *const std::ffi::c_void,
+            lpBaseAddress: LPVOID,
             lpBuffer: *mut std::ffi::c_void,
             nSize: SIZE_T,
             lpNumberOfBytesRead: *mut SIZE_T,
         ) -> BOOL;
         pub fn WriteProcessMemory(
             hProcess: HANDLE,
-            lpBaseAddress: *const std::ffi::c_void,
+            lpBaseAddress: LPVOID,
             lpBuffer: *const std::ffi::c_void,
             nSize: SIZE_T,
             lpNumberOfBytesRead: *mut SIZE_T,
         ) -> BOOL;
-
+        pub fn VirtualProtectEx(
+            hProcess: HANDLE,
+            lpAddress: LPVOID,
+            dwSize: SIZE_T,
+            flNewProtect: DWORD,
+            lpflOldProtect: *mut DWORD,
+        ) -> BOOL;
         /* Process enumeration */
         pub fn CreateToolhelp32Snapshot(dwFlags: DWORD, th32ProcessID: DWORD) -> HANDLE;
         pub fn Process32FirstW(hSnapshot: HANDLE, lppe: *mut PROCESSENTRY32W) -> BOOL;
