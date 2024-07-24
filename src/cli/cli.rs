@@ -32,15 +32,15 @@ pub enum Material {
 
 impl Material {
     /* Static Offsets for common memory locations */
-    pub const ESSENCE_OFFSET: u64 = 0x1cdbbf4; // 0
-    pub const HONOR_OFFSET: u64 = 0x1cdbbf8; // +4
-    pub const BLESSING_OFFSET: u64 = 0x1cdbbfc; // +4
+    pub const ESSENCE_OFFSET: u64 = 0x1cdbc74; // 0
+    pub const HONOR_OFFSET: u64 = 0x1cdbc78; // +4
+    pub const BLESSING_OFFSET: u64 = 0x1cdbc7c; // +4
 
-    pub const SWORD_TOKEN_OFFSET: u64 = 0x1cdbc00; // +4
-    pub const BOW_TOKEN_OFFSET: u64 = 0x1cdbc04; // +4
-    pub const CHARM_TOKEN_OFFSET: u64 = 0x1cdbc08; // +4
-    pub const GW1_TOKEN_OFFSET: u64 = 0x1cdbc0c; // +4
-    pub const GW2_TOKEN_OFFSET: u64 = 0x1cdbc10; // +4
+    pub const SWORD_TOKEN_OFFSET: u64 = 0x1cdbc80; // +4
+    pub const BOW_TOKEN_OFFSET: u64 = 0x1cdbc84; // +4
+    pub const CHARM_TOKEN_OFFSET: u64 = 0x1cdbc88; // +4
+    pub const GW1_TOKEN_OFFSET: u64 = 0x1cdbc8c; // +4
+    pub const GW2_TOKEN_OFFSET: u64 = 0x1cdbc90; // +4
 
     /// Returns the appropriate offset for the given material.
     pub fn offset(&self) -> u64 {
@@ -65,16 +65,16 @@ pub enum AmmoType {
 }
 
 impl AmmoType {
-    pub const ARROW_X_OFFSET: u64 = 0x1cdc348; // +1848
-    pub const ARROW_Y_OFFSET: u64 = 0x1cdc34c; // +4
+    pub const ARROW_X_OFFSET: u64 = 0x1cdc3c8; // +1848
+    pub const ARROW_Y_OFFSET: u64 = 0x1cdc3cc; // +4
 
-    pub const BLOWGUN_X_OFFSET: u64 = 0x1cdc360; // +20
-    pub const BLOWGUN_Y_OFFSET: u64 = 0x1cdc364; // +4
-    pub const BLOWGUN_B_OFFSET: u64 = 0x1cdc368; // +4
+    pub const BLOWGUN_X_OFFSET: u64 = 0x1cdc3e0; // +20
+    pub const BLOWGUN_Y_OFFSET: u64 = 0x1cdc3e4; // +4
+    pub const BLOWGUN_B_OFFSET: u64 = 0x1cdc3e8; // +4
 
-    pub const THROWABLE_Y_OFFSET: u64 = 0x1cdc370; // +8
-    pub const THROWABLE_B_OFFSET: u64 = 0x1cdc37c; // +12
-    pub const THROWABLE_X_OFFSET: u64 = 0x1cdc380; // +4
+    pub const THROWABLE_Y_OFFSET: u64 = 0x1cdc3f0; // +8
+    pub const THROWABLE_B_OFFSET: u64 = 0x1cdc3fc; // +12
+    pub const THROWABLE_X_OFFSET: u64 = 0x1cdc400; // +4
 
     fn offsets(&self) -> &[u64] {
         match self {
